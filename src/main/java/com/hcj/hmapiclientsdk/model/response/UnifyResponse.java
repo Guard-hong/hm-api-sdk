@@ -23,7 +23,6 @@ public class UnifyResponse implements Serializable {
         return data;
     }
 
-    @JsonAnySetter
     public void setData(Map<String, Object> data) {
         this.data = data;
     }

@@ -1,20 +1,20 @@
-package com.hcj.hmapiclientsdk.client;
+package com.hcj.hmapiclientsdk.service;
 
 import cn.hutool.crypto.SecureUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import cn.hutool.json.JSONUtil;
+import com.hcj.hmapiclientsdk.client.HmApiClient;
 import com.hcj.hmapiclientsdk.common.ErrorCode;
-import com.hcj.hmapiclientsdk.constant.GatewayHostConstant;
 import com.hcj.hmapiclientsdk.exception.BusinessException;
 import com.hcj.hmapiclientsdk.model.enums.MethodEnum;
 import com.hcj.hmapiclientsdk.model.hmapiclient.Identification;
 import com.hcj.hmapiclientsdk.model.request.UnifyRequest;
-import com.hcj.hmapiclientsdk.model.response.UnifyResponse;
 import com.hcj.hmapiclientsdk.utils.SignUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
+import javax.annotation.Resource;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,32 +24,34 @@ import java.util.Map;
  * @Description:
  **/
 @Slf4j
-public abstract class BaseClient {
+public abstract class BaseService {
+
+    private HmApiClient hmApiClient;
 
     /**
      * 封装请求头
-     * @param identification
+     * @param accessKey
+     * @param secretKey
      * @param body
      * @return
      */
-    private Map<String, String> getHeaders(Identification identification, String body){
+    private Map<String, String> getHeaders(String accessKey, String secretKey, String body){
         HashMap<String, String> headers = new HashMap<>();
         headers.put("timestamp", String.valueOf(System.currentTimeMillis() / 1000));
         String encodedBody = SecureUtil.md5(body);
         headers.put("body",encodedBody);
-        headers.put("accessKey",identification.getAccessKey());
-        headers.put("sign", SignUtils.genSign(encodedBody,identification.getSecretKey()));
+        headers.put("accessKey",accessKey);
+        headers.put("sign", SignUtils.genSign(encodedBody,secretKey));
         // todo 增加请求头，增强完整性和安全性
         return headers;
     }
 
     /**
      * 发送请求
-     * @param identification
      * @param unifyRequest
      * @return
      */
-    private HttpResponse doRequest(Identification identification,UnifyRequest unifyRequest){
+    private HttpResponse doRequest(UnifyRequest unifyRequest){
         String method = unifyRequest.getMethod().trim().toUpperCase();
         String path = unifyRequest.getPath().trim(); // path: /api/xx/*
         Map<String, Object> requestParams = unifyRequest.getRequestParams();
@@ -59,7 +61,7 @@ public abstract class BaseClient {
         if(StringUtils.isBlank(path)){
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR,"请求路径不存在");
         }
-        HttpRequest httpRequest = null;
+        HttpRequest httpRequest;
         switch (method){
             case "GET" :{
                 // 拼接get参数 /api/xx?username=cc&password=xx
@@ -77,36 +79,43 @@ public abstract class BaseClient {
         }
         log.info("{}请求路径是： {}",method,path);
         return httpRequest
-                .addHeaders(getHeaders(identification,JSONUtil.toJsonStr(unifyRequest)))
+                .addHeaders(getHeaders(hmApiClient.getAccessKey(),hmApiClient.getSecretKey(),JSONUtil.toJsonStr(unifyRequest)))
                 .execute();
     }
 
 
     /**
      * 响应
-     * @param identification
      * @param unifyRequest
      * @return
      */
-    private String doResponse(Identification identification,UnifyRequest unifyRequest){
-        HttpResponse httpResponse = doRequest(identification,unifyRequest);
+    private String doResponse(UnifyRequest unifyRequest){
+        HttpResponse httpResponse = doRequest(unifyRequest);
         String res = httpResponse.body();
         return res;
     }
 
     /**
      * 发送请求
-     * @param identification
      * @param unifyRequest
+     * @param hmApiClient
      * @return
      */
-    public String request(Identification identification,UnifyRequest unifyRequest){
-        if(identification==null || identification.getAccessKey()==null ||identification==null){
-            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
-        }
-        return doResponse(identification,unifyRequest);
+    public String request(HmApiClient hmApiClient,UnifyRequest unifyRequest){
+        checkConfig(hmApiClient);
+        return doResponse(unifyRequest);
     }
 
+    /**
+     * 判断ak和sk
+     * @param hmApiClient
+     */
+    private void checkConfig(HmApiClient hmApiClient){
+        if (hmApiClient == null || StringUtils.isAnyBlank(hmApiClient.getAccessKey(), hmApiClient.getSecretKey())) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "请先配置密钥AccessKey/SecretKey");
+        }
+        this.hmApiClient = hmApiClient;
+    }
 
     /**
      * 给get请求添加请求参数

@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.hcj</groupId>
     <artifactId>hm-api-client-sdk</artifactId>
-    <version>0.0.2</version>
+    <version>0.0.3</version>
     <name>hm-api-client-sdk</name>
     <description>hm-api-client-sdk</description>
     <properties>
